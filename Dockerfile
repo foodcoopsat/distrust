@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 FROM --platform=linux/amd64 golang:1.25-trixie AS builder
 
 WORKDIR /build
