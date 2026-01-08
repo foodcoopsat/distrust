@@ -13,14 +13,18 @@ ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
+ENV CGO_ENABLED=0
 
 RUN go build
+
+FROM scratch AS artifact
+COPY --from=builder /build/distrust .
 
 # Use distroless as minimal base image to package the distrust binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
-COPY --from=builder /build/distrust /
+COPY --from=builder /build/distrust .
 USER nonroot:nonroot
 
 EXPOSE 3000
