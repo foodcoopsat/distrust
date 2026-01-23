@@ -60,9 +60,6 @@ type OIDCOption interface {
 func NewOIDC(path string, disc discourse.SSOConfig, clients map[string]fosite.Client, opts ...OIDCOption) *OIDCProvider {
 	s := storage.NewMemoryStore()
 	s.Clients = clients
-	config := &compose.Config{
-		AccessTokenLifespan: time.Minute * 30,
-	}
 	oopts := oidcOptions{}
 	for _, opt := range opts {
 		opt.apply(&oopts)
@@ -79,8 +76,13 @@ func NewOIDC(path string, disc discourse.SSOConfig, clients map[string]fosite.Cl
 		priv, _ := rsa.GenerateKey(rand.Reader, 2048)
 		oopts.privateKey = priv
 	}
+
+	config := &fosite.Config{
+		AccessTokenLifespan: time.Minute * 30,
+		GlobalSecret: oopts.secret,
+	}
 	return &OIDCProvider{
-		oauth2:          compose.ComposeAllEnabled(config, s, oopts.secret, oopts.privateKey),
+		oauth2:          compose.ComposeAllEnabled(config, s, oopts.privateKey),
 		inflight:        map[uuid.UUID]*InFlightRequest{},
 		root:            path,
 		privateKey:      oopts.privateKey,
@@ -127,18 +129,19 @@ func (o *OIDCProvider) newSession(aroot string, values url.Values) *openid.Defau
 	return &openid.DefaultSession{
 		Claims: &jwt.IDTokenClaims{
 			Issuer:      aroot,
-			Subject:     values.Get("username"),
+			Subject:     values.Get("external_id"),
 			Audience:    []string{},
 			ExpiresAt:   time.Now().Add(time.Hour * 6),
 			IssuedAt:    time.Now(),
 			RequestedAt: time.Now(),
 			AuthTime:    time.Now(),
 			Extra: map[string]interface{}{
-				"email":          values.Get("email"),
-				"email_verified": true,
-				"picture":        values.Get("avatar_url"),
-				"name":           values.Get("name"),
-				"groups":         strings.Split(values.Get("groups"), ","),
+				"email":              values.Get("email"),
+				"email_verified":     true,
+				"picture":            values.Get("avatar_url"),
+				"name":               values.Get("name"),
+				"groups":             strings.Split(values.Get("groups"), ","),
+				"preferred_username": values.Get("username"),
 			},
 		},
 		Headers: &jwt.Headers{
