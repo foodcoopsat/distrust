@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/openid"
 	"github.com/parkour-vienna/distrust/cryptutils"
 	"github.com/parkour-vienna/distrust/discourse"
 	"github.com/rs/zerolog/log"
-	jose "github.com/go-jose/go-jose/v3"
 )
 
 func (o *OIDCProvider) authEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -112,6 +112,21 @@ func (o *OIDCProvider) callbackEndpoint(rw http.ResponseWriter, req *http.Reques
 
 	aroot := o.getAuthRoot(req)
 	mySessionData := o.newSession(aroot, values)
+
+	// Apply claim mappings if client is a DistrustClient
+	if dc, ok := session.Ar.GetClient().(*DistrustClient); ok {
+		extra := mySessionData.Claims.Extra
+		for _, mapping := range dc.MapClaims {
+			// Get the value from the source claim
+			if sourceValue := values.Get(mapping.FromClaim); sourceValue != "" {
+				extra[mapping.ToClaim] = sourceValue
+			} else if existingValue, exists := extra[mapping.FromClaim]; exists {
+				// If not in values, check if it's already in extra
+				extra[mapping.ToClaim] = existingValue
+			}
+		}
+	}
+
 	response, err := o.oauth2.NewAuthorizeResponse(req.Context(), session.Ar, mySessionData)
 
 	// Catch any errors, e.g.:
@@ -232,9 +247,9 @@ func (o *OIDCProvider) certsEndpoint(rw http.ResponseWriter, req *http.Request) 
 		Keys: []jose.JSONWebKey{
 			{
 				Algorithm: "RS256",
-				KeyID: cryptutils.KeyID(o.privateKey.PublicKey),
-				Use:   "sig",
-				Key:   &o.privateKey.PublicKey,
+				KeyID:     cryptutils.KeyID(o.privateKey.PublicKey),
+				Use:       "sig",
+				Key:       &o.privateKey.PublicKey,
 			},
 		},
 	}

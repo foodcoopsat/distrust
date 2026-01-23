@@ -42,3 +42,9 @@ clients:
     allowGroups: ['team']
     redirectURIs:
       - 'https://openidconnect.net/callback'
+    # Optional: Map claims from Discourse SSO to different claim names in OIDC tokens
+    # mapClaims:
+    #   - fromClaim: username
+    #     toClaim: preferred_username_alt
+    #   - fromClaim: email
+    #     toClaim: email_address
