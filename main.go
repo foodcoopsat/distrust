@@ -27,6 +27,7 @@ type clientConfig struct {
 	AllowGroups  []string
 	DenyGroups   []string
 	MapClaims    []auth.ClaimMapping
+	TokenEndpointAuthMethod string
 }
 
 func main() {
@@ -117,6 +118,7 @@ func toFositeClients(clients map[string]clientConfig) map[string]fosite.Client {
 			AllowGroups: v.AllowGroups,
 			DenyGroups:  v.DenyGroups,
 			MapClaims:   v.MapClaims,
+			TokenEndpointAuthMethod: v.TokenEndpointAuthMethod,
 		}
 		if len(v.AllowGroups) != 0 && len(v.DenyGroups) != 0 {
 			log.Warn().Str("client", k).Msg("allow and deny group options are set. allow groups will be used")
