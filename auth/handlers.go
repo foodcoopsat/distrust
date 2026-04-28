@@ -94,8 +94,16 @@ func (o *OIDCProvider) callbackEndpoint(rw http.ResponseWriter, req *http.Reques
 
 	switch client := session.Ar.GetClient().(type) {
 	case *DistrustClient:
-		log.Debug().Str("client", client.GetID()).Msg("distrust client found, performing additonal validation")
-		err := validateGroups(client, values)
+		log.Debug().Str("client", client.GetID()).Msg("distrust client found, performing additional validation")
+		err := validateGroups(&client.DistrustBase, values)
+		if err != nil {
+			log.Warn().Err(err).Msg("group validation failed")
+			fmt.Fprintf(rw, "You are not allowed to access this application: %s", err.Error())
+			return
+		}
+	case *DistrustOpenIDConnectClient:
+		log.Debug().Str("client", client.GetID()).Msg("distrust openid client found, performing additional validation")
+		err := validateGroups(&client.DistrustBase, values)
 		if err != nil {
 			log.Warn().Err(err).Msg("group validation failed")
 			fmt.Fprintf(rw, "You are not allowed to access this application: %s", err.Error())
@@ -113,8 +121,14 @@ func (o *OIDCProvider) callbackEndpoint(rw http.ResponseWriter, req *http.Reques
 	aroot := o.getAuthRoot(req)
 	mySessionData := o.newSession(aroot, values)
 
-	// Apply claim mappings if client is a DistrustClient
-	if dc, ok := session.Ar.GetClient().(*DistrustClient); ok {
+	// Apply claim mappings if client is a DistrustClient or DistrustOpenIDConnectClient
+	var dc *DistrustBase
+	if client, ok := session.Ar.GetClient().(*DistrustClient); ok {
+		dc = &client.DistrustBase
+	} else if client, ok := session.Ar.GetClient().(*DistrustOpenIDConnectClient); ok {
+		dc = &client.DistrustBase
+	}
+	if dc != nil {
 		extra := mySessionData.Claims.Extra
 		for _, mapping := range dc.MapClaims {
 			// Get the value from the source claim
@@ -267,6 +281,7 @@ func (o *OIDCProvider) userInfoEndpoint(rw http.ResponseWriter, req *http.Reques
 			rw.Header().Set("WWW-Authenticate", fmt.Sprintf("error=%s,error_description=%s", rfcerr.ErrorField, rfcerr.GetDescription()))
 		}
 		_, _ = rw.Write([]byte(err.Error()))
+		log.Info().Msg("userinfo case 1")
 		return
 	}
 
@@ -274,13 +289,18 @@ func (o *OIDCProvider) userInfoEndpoint(rw http.ResponseWriter, req *http.Reques
 		err := errors.New("Only Access tokens can be used to fetch user information")
 		rw.Header().Set("WWW-Authenticate", fmt.Sprintf("error_description=%s", err.Error()))
 		_, _ = rw.Write([]byte(err.Error()))
+		log.Info().Msg("userinfo case 2")
 		return
 	}
 
 	info := ar.GetSession().(*openid.DefaultSession).Claims.ToMap()
+	// log.Info().Interface("claims", info).Msg("userinfo")
+
 	delete(info, "rat")
 	delete(info, "exp")
 	delete(info, "at_hash")
+
+	rw.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(rw).Encode(info)
 }
 
@@ -295,7 +315,7 @@ func (o *OIDCProvider) getAuthRoot(req *http.Request) string {
 	return aroot
 }
 
-func validateGroups(client *DistrustClient, values url.Values) error {
+func validateGroups(client *DistrustBase, values url.Values) error {
 	userGroups := values.Get("groups")
 	groupMap := make(map[string]bool)
 	for _, g := range strings.Split(userGroups, ",") {

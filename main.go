@@ -106,20 +106,44 @@ func toFositeClients(clients map[string]clientConfig) map[string]fosite.Client {
 			hs, _ = bcrypt.GenerateFromPassword(hs, bcrypt.DefaultCost)
 		}
 
-		r[k] = &auth.DistrustClient{
-			DefaultClient: fosite.DefaultClient{
-				ID:            k,
-				Secret:        hs,
-				RedirectURIs:  v.RedirectURIs,
+		if v.TokenEndpointAuthMethod == "" {
+			r[k] = &auth.DistrustClient{
+				DefaultClient: fosite.DefaultClient{
+					ID: k,
+					Secret: hs,
+					RedirectURIs: v.RedirectURIs,
+					ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
+					GrantTypes: []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+					Scopes: []string{"openid", "profile", "email"},
+				},
+				DistrustBase: auth.DistrustBase{
+					AllowGroups: v.AllowGroups,
+					DenyGroups: v.DenyGroups,
+					MapClaims: v.MapClaims,
+				},
+			}
+		} else {
+			defaultClient := fosite.DefaultClient{
+				ID: k,
+				Secret: hs,
+				RedirectURIs: v.RedirectURIs,
 				ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-				GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
-				Scopes:        []string{"openid", "profile", "email"},
-			},
-			AllowGroups: v.AllowGroups,
-			DenyGroups:  v.DenyGroups,
-			MapClaims:   v.MapClaims,
-			TokenEndpointAuthMethod: v.TokenEndpointAuthMethod,
+				GrantTypes: []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+				Scopes: []string{"openid", "profile", "email"},
+			}
+			r[k] = &auth.DistrustOpenIDConnectClient{
+				DefaultOpenIDConnectClient: fosite.DefaultOpenIDConnectClient{
+					DefaultClient: &defaultClient,
+					TokenEndpointAuthMethod: v.TokenEndpointAuthMethod,
+				},
+				DistrustBase: auth.DistrustBase{
+					AllowGroups: v.AllowGroups,
+					DenyGroups: v.DenyGroups,
+					MapClaims: v.MapClaims,
+				},
+			}
 		}
+
 		if len(v.AllowGroups) != 0 && len(v.DenyGroups) != 0 {
 			log.Warn().Str("client", k).Msg("allow and deny group options are set. allow groups will be used")
 		}

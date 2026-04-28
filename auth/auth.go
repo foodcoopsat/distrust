@@ -34,12 +34,22 @@ type ClaimMapping struct {
 	ToClaim   string
 }
 
+type DistrustBase struct {
+    AllowGroups []string
+    DenyGroups  []string
+    MapClaims   []ClaimMapping
+}
+
 type DistrustClient struct {
 	fosite.DefaultClient
-	AllowGroups []string
-	DenyGroups  []string
-	MapClaims   []ClaimMapping
+	DistrustBase
 }
+
+type DistrustOpenIDConnectClient struct {
+	fosite.DefaultOpenIDConnectClient
+	DistrustBase
+}
+
 
 type InFlightRequest struct {
 	Nonce int

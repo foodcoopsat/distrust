@@ -5,9 +5,7 @@ now=$(shell date +'%Y-%m-%d-%H-%M')
 IMAGE_TAG=$(now)
 
 image:
-	docker build --tag ${IMAGE_NAME}:${IMAGE_TAG} --platform linux/arm64,linux/amd64 .
-	docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME} 
+	docker build --tag ${IMAGE_NAME}:${IMAGE_TAG} --platform linux/arm64,linux/amd64 --load .
 
 publish:
 	docker push ${IMAGE_NAME}:${IMAGE_TAG}
-	docker push ${IMAGE_NAME}
